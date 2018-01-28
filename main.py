@@ -1,3 +1,8 @@
+
+# coding: utf-8
+
+# In[ ]:
+
 import os
 import time
 import copy
@@ -21,7 +26,12 @@ from torchvision.datasets.folder import pil_loader
 from densenet import densenet169
 from utils import plot_training
 
+get_ipython().magic('matplotlib inline')
+
+
 # ### Prepare Data pipeline
+
+# In[ ]:
 
 data_cat = ['train', 'valid'] # data categories
 study_data = {}
@@ -31,13 +41,20 @@ for phase in data_cat:
     study_data[phase] = pd.DataFrame(columns=['Path', 'Count', 'Label'])
     study_label = {'positive': 0, 'negative': 1}
     i = 0
-    for patient in tqdm(patients):
+    for patient in tqdm(patients[:100]):
         for study_type in os.listdir(BASE_DIR + patient):
             label = study_label[study_type.split('_')[1]]
             path = BASE_DIR + patient + '/' + study_type + '/'
             study_data[phase].loc[i] = [path, len(os.listdir(path)), label]
             i+=1
 
+
+# In[ ]:
+
+study_data['train'][study_data['train']['Path'].str.contains("positive")].head()
+
+
+# In[ ]:
 
 class StudyImageDataset(Dataset):
     """training dataset."""
@@ -68,6 +85,8 @@ class StudyImageDataset(Dataset):
         return sample
 
 
+# In[ ]:
+
 data_transforms = {
     'train': transforms.Compose([
             transforms.Resize((224, 224)),
@@ -82,18 +101,14 @@ data_transforms = {
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]),
 }
-image_datasets = { x: StudyImageDataset(study_data[x], transform=data_transforms[x]) for x in data_cat}
+image_datasets = {x: StudyImageDataset(study_data[x], transform=data_transforms[x]) for x in data_cat}
 dataloaders = {x: DataLoader(image_datasets[x], batch_size=1, shuffle=True, num_workers=4) for x in data_cat}
-
-
 dataset_sizes = {x: len(study_data[x]) for x in data_cat}
-use_gpu = torch.cuda.is_available()
-
-
-next(iter(dataloaders['train']))['images'][0].shape
 
 
 # ### Building the model
+
+# In[ ]:
 
 def n_p(x):
     '''convert numpy float to Variable tensor float'''
@@ -103,29 +118,59 @@ def n_p(x):
         return Variable(torch.FloatTensor([x]), requires_grad=False)    
 
 
-# tai = total abnormal studies, tni = total normal studies
+# In[ ]:
 
-tai = {x: study_data[x]['Label'].value_counts()[1] for x in data_cat}
-tni = {x: study_data[x]['Label'].value_counts()[0] for x in data_cat}
+def get_count(df, cat):
+    '''
+    Returns number of images in a study type dataframe which are of abnormal or normal
+    Args:
+    df -- dataframe
+    cat -- category, "positive" for normal and "negative" for abnormal
+    '''
+    return df[df['Path'].str.contains(cat)]['Count'].sum()
+
+
+# In[ ]:
+
+# tas = total abnormal/negative studies, tns = total normal/positive studies
+
+tas = {x: study_data[x]['Label'].value_counts()[1] for x in data_cat}
+tns = {x: study_data[x]['Label'].value_counts()[0] for x in data_cat}
+
+# tai = total abnormal images, tni = total normal images
+
+tai = {x: get_count(study_data[x], 'negative') for x in data_cat}
+tni = {x: get_count(study_data[x], 'positive') for x in data_cat}
+
+
 Wt1 = {x: n_p(tni[x] / (tni[x] + tai[x])) for x in data_cat}
 Wt0 = {x: n_p(tai[x] / (tni[x] + tai[x])) for x in data_cat}
 
 
+print('tas:', tas)
+print('tns:', tns, '\n')
 print('tai:', tai)
 print('tni:', tni, '\n')
-print('Wt0:', Wt0, '\n')
-print('Wt1:', Wt1)
 
+print('Wt0 train:', Wt0['train'].data)
+print('Wt0 valid:', Wt0['valid'].data)
+print('Wt1 train:', Wt1['train'].data)
+print('Wt1 valid:', Wt1['valid'].data)
+
+
+# In[ ]:
 
 def update_TP_TN(outputs, labels_data, TP, TN):
     '''
-    Takes output and label_data and calculates TP and TN
+    Takes output and label_data and calculates True Positive (TP) and True Negative(TN)
     '''
     sum_array = (outputs + labels_data).cpu().numpy()
     TP += np.count_nonzero(sum_array == 2) # predicted = label = 1 and 1+1 = 2
     TN += np.count_nonzero(sum_array == 0) # predicted = label = 0 and 0+0 = 0
     return TP, TN
 
+
+# In[ ]:
 
 class Loss(nn.modules.Module):
     def __init__(self, Wt1, Wt0):
@@ -134,11 +179,12 @@ class Loss(nn.modules.Module):
         self.Wt0 = Wt0
         
     def forward(self, inputs, targets, phase):
-        loss = - 1/len(inputs) * (self.Wt1[phase] * targets * inputs.log() + 
-                                  self.Wt0[phase] * (1 - targets) * (1 - inputs).log())
+        loss = - (self.Wt1[phase] * targets * inputs.log() + self.Wt0[phase] * (1 - targets) * (1 - inputs).log())
         return loss
-    
-    
+
+
+# In[ ]:
+
 def train_model(model, criterion, optimizer, num_epochs=25):
     since = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -168,13 +214,13 @@ def train_model(model, criterion, optimizer, num_epochs=25):
                 inputs = data['images'][0]
                 labels = data['label']
                 # wrap them in Variable
+                labels = data['label'].type(torch.FloatTensor)
                 if use_gpu:
                     inputs = Variable(inputs.cuda())
-                    labels = data['label'].type(torch.FloatTensor)
                     labels = Variable(labels.cuda())
                 else:
                     inputs = Variable(inputs)
-                    labels = Variable(labels).type(torch.FloatTensor)
+                    labels = Variable(labels)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -182,7 +228,7 @@ def train_model(model, criterion, optimizer, num_epochs=25):
                 # forward
                 outputs = model(inputs)
                 outputs = torch.mean(outputs)
-                loss = criterion(outputs, labels, phase)
+                loss = criterion(outputs, labels)
                 
                 # backward + optimize only if in training phase
                 if phase == 'train':
@@ -195,6 +241,7 @@ def train_model(model, criterion, optimizer, num_epochs=25):
                     preds = (outputs.data > 0.5).type(torch.cuda.FloatTensor)
                 else:
                     preds = (outputs.data > 0.5).type(torch.FloatTensor)
+                    
                 running_corrects += torch.sum(preds == labels.data)
                 TP, TN = update_TP_TN(preds, labels.data, TP, TN)
 
@@ -213,12 +260,11 @@ def train_model(model, criterion, optimizer, num_epochs=25):
 
             # deep copy the model
             if phase == 'val':
+                scheduler.step(epoch_loss)
                 if epoch_acc > best_acc:
                     best_acc = epoch_acc
                     best_model_wts = copy.deepcopy(model.state_dict())
-                scheduler.step(epoch_loss)
         print()
-
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
@@ -230,16 +276,54 @@ def train_model(model, criterion, optimizer, num_epochs=25):
     return model
 
 
+# In[ ]:
+
 model = densenet169(pretrained=True)
+use_gpu = torch.cuda.is_available()
 if use_gpu:
     model = model.cuda()
 
 
-criterion = Loss(Wt1, Wt0)
+# In[ ]:
+
+criterion = nn.modules.loss.BCELoss()
 optimizer = Adam(model.parameters(), lr=0.0001)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=1, verbose=True)
 
-model = train_model(model, criterion, optimizer, num_epochs=4)
 
-torch.save(model.state_dict(), 'models/v2.0.pth')
+# In[ ]:
+
+train_model(model, criterion, optimizer, num_epochs=4)
+
+
+# In[ ]:
+
+# torch.save(model.state_dict(), 'models/v2.0.pth')
+
+
+# In[ ]:
+
+# model.load_state_dict(torch.load('models/v1.pth'))
+
+
+# ### Model architecture used in this code
+
+# In[ ]:
+
+# model
+
+
+# In[ ]:
+
+# !jupyter nbconvert --to script v2.ipynb
+
+
+# In[ ]:
+
+
+
+
+# In[ ]:
+
+
 
