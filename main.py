@@ -51,11 +51,6 @@ for phase in data_cat:
 
 # In[ ]:
 
-study_data['train'][study_data['train']['Path'].str.contains("positive")].head()
-
-
-# In[ ]:
-
 class StudyImageDataset(Dataset):
     """training dataset."""
 
@@ -104,6 +99,8 @@ data_transforms = {
 image_datasets = {x: StudyImageDataset(study_data[x], transform=data_transforms[x]) for x in data_cat}
 dataloaders = {x: DataLoader(image_datasets[x], batch_size=1, shuffle=True, num_workers=4) for x in data_cat}
 dataset_sizes = {x: len(study_data[x]) for x in data_cat}
+use_gpu = torch.cuda.is_available()
+use_gpu = False
 
 
 # ### Building the model
@@ -113,9 +110,9 @@ dataset_sizes = {x: len(study_data[x]) for x in data_cat}
 def n_p(x):
     '''convert numpy float to Variable tensor float'''
     if use_gpu:
-        return Variable(torch.cuda.FloatTensor([x]), requires_grad=False)
+        return torch.cuda.FloatTensor([x])
     else:
-        return Variable(torch.FloatTensor([x]), requires_grad=False)    
+        return torch.FloatTensor([x])
 
 
 # In[ ]:
@@ -151,11 +148,10 @@ print('tas:', tas)
 print('tns:', tns, '\n')
 print('tai:', tai)
 print('tni:', tni, '\n')
-
-print('Wt0 train:', Wt0['train'].data)
-print('Wt0 valid:', Wt0['valid'].data)
-print('Wt1 train:', Wt1['train'].data)
-print('Wt1 valid:', Wt1['valid'].data)
+print('Wt0 train:', Wt0['train'])
+print('Wt0 valid:', Wt0['valid'])
+print('Wt1 train:', Wt1['train'])
+print('Wt1 valid:', Wt1['valid'])
 
 
 # In[ ]:
@@ -175,8 +171,8 @@ def update_TP_TN(outputs, labels_data, TP, TN):
 class Loss(nn.modules.Module):
     def __init__(self, Wt1, Wt0):
         super(Loss, self).__init__()
-        self.Wt1 = Wt1
-        self.Wt0 = Wt0
+        self.Wt1 = Variable(Wt1, requires_grad=False)
+        self.Wt0 = Variable(Wt0, requires_grad=False)
         
     def forward(self, inputs, targets, phase):
         loss = - (self.Wt1[phase] * targets * inputs.log() + self.Wt0[phase] * (1 - targets) * (1 - inputs).log())
@@ -259,7 +255,7 @@ def train_model(model, criterion, optimizer, num_epochs=25):
                 phase, sensitivity, specificity))
 
             # deep copy the model
-            if phase == 'val':
+            if phase == 'valid':
                 scheduler.step(epoch_loss)
                 if epoch_acc > best_acc:
                     best_acc = epoch_acc
@@ -268,7 +264,7 @@ def train_model(model, criterion, optimizer, num_epochs=25):
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
+    print('Best valid Acc: {:4f}'.format(best_acc))
     
     plot_training(costs, accs)
     # load best model weights
@@ -279,7 +275,6 @@ def train_model(model, criterion, optimizer, num_epochs=25):
 # In[ ]:
 
 model = densenet169(pretrained=True)
-use_gpu = torch.cuda.is_available()
 if use_gpu:
     model = model.cuda()
 
@@ -293,7 +288,7 @@ scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=1, verbose=True)
 
 # In[ ]:
 
-train_model(model, criterion, optimizer, num_epochs=4)
+model = train_model(model, criterion, optimizer, num_epochs=4)
 
 
 # In[ ]:
@@ -306,16 +301,15 @@ train_model(model, criterion, optimizer, num_epochs=4)
 # model.load_state_dict(torch.load('models/v1.pth'))
 
 
-# ### Model architecture used in this code
-
 # In[ ]:
 
+# Model architecture used in this code
 # model
 
 
 # In[ ]:
 
-# !jupyter nbconvert --to script v2.ipynb
+get_ipython().system('jupyter nbconvert --to script v2.ipynb')
 
 
 # In[ ]:
