@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 
 def plot_training(costs, accs):
     train_acc = accs['train']
-    val_acc = accs['val']
+    val_acc = accs['valid']
     train_cost = costs['train']
-    val_cost = costs['val']
+    val_cost = costs['valid']
     epochs = range(len(train_acc))
 
     plt.figure(figsize=(10, 5))
@@ -12,13 +12,13 @@ def plot_training(costs, accs):
     plt.subplot(1, 2, 1,)
     plt.plot(epochs, train_acc)
     plt.plot(epochs, val_acc)
-    plt.legend(['train', 'val'], loc='upper left')
+    plt.legend(['train', 'valid'], loc='upper left')
     plt.title('Accuracy')
     
     plt.subplot(1, 2, 2)
     plt.plot(epochs, train_cost)
     plt.plot(epochs, val_cost)
-    plt.legend(['train', 'val'], loc='upper left')
+    plt.legend(['train', 'valid'], loc='upper left')
     plt.title('Cost')
     
     plt.show()
