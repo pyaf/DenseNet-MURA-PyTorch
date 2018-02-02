@@ -13,7 +13,7 @@ According to MURA dataset paper:
 
 > The model takes as input one or more views for a study of an upper extremity. On each view, our 169-layer convolutional neural network predicts the probability of abnormality. We compute the overall probability of abnormality for the study by taking the arithmetic mean of the abnormality probabilities output by the network for each image.
 
-The model implemented in `main.py` takes as input 'all' the views for a study of an upper extremity. On each view the model predicts the probability of abnormality. The Model computes the overall probability of abnormality for the study by taking the arithmetic mean of the abnormality probabilites output by the network for each image.
+The model implemented in [model.py](model.py) takes as input 'all' the views for a study of an upper extremity. On each view the model predicts the probability of abnormality. The Model computes the overall probability of abnormality for the study by taking the arithmetic mean of the abnormality probabilites output by the network for each image.
 
 
 ## Citation
