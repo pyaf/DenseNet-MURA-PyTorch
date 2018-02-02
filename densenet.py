@@ -102,8 +102,11 @@ class DenseNet(nn.Module):
 
         # Final batch norm
         self.features.add_module('norm5', nn.BatchNorm2d(num_features))
-
+        
         # Linear layer
+        # self.classifier = nn.Linear(num_features, 1000)
+        # self.fc = nn.Linear(1000, 1)
+        
         self.fc = nn.Linear(num_features, 1)
         
         # Official init from torch repo.
@@ -120,5 +123,6 @@ class DenseNet(nn.Module):
         features = self.features(x)
         out = F.relu(features, inplace=True)
         out = F.avg_pool2d(out, kernel_size=7, stride=1).view(features.size(0), -1)
-        out = torch.sigmoid(self.fc(out))
+        # out = F.relu(self.classifier(out))
+        out = F.sigmoid(self.fc(out))
         return out
