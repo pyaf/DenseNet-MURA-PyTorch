@@ -13,9 +13,8 @@ study_data = get_study_level_data(study_type='XR_WRIST')
 
 # #### Create dataloaders pipeline
 data_cat = ['train', 'valid'] # data categories
-dataloaders = get_dataloaders(study_data, batch_size=1, study_level=True)
+dataloaders = get_dataloaders(study_data, batch_size=1)
 dataset_sizes = {x: len(study_data[x]) for x in data_cat}
-
 
 # #### Build model
 # tai = total abnormal images, tni = total normal images
@@ -48,12 +47,9 @@ criterion = Loss(Wt1, Wt0)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=1, verbose=True)
 
-
 # #### Train model
-model = train_model(model, criterion, optimizer, dataloaders, scheduler, dataset_sizes, num_epochs=5, v2=True)
+model = train_model(model, criterion, optimizer, dataloaders, scheduler, dataset_sizes, num_epochs=5)
 
-# torch.save(model.state_dict(), 'models/v2.2.pth')
+torch.save(model.state_dict(), 'models/model.pth')
 
-# model.load_state_dict(torch.load('models/v1.1.pth'))
-
-get_metrics(model, criterion, dataloaders, dataset_sizes, v2=True)
+get_metrics(model, criterion, dataloaders, dataset_sizes)

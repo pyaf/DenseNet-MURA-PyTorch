@@ -33,43 +33,35 @@ def get_study_level_data(study_type):
 class ImageDataset(Dataset):
     """training dataset."""
 
-    def __init__(self, df, transform=None, study_level=False):
+    def __init__(self, df, transform=None):
         """
         Args:
             df (pd.DataFrame): a pandas DataFrame with image path and labels.
-            study_level (Boolean): if True, then dataset is for study level dataset (for model v2)
-                else it is image level dataset (for model v1)
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
         self.df = df
-        self.study_level = study_level
         self.transform = transform
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
-        if self.study_level:
-            study_path = self.df.iloc[idx, 0]
-            count = self.df.iloc[idx, 1]
-            images = []
-            for i in range(count):
-                image = pil_loader(study_path + 'image%s.png' % (i+1))
-                images.append(self.transform(image))
-            images = torch.stack(images)
-            label = self.df.iloc[idx, 2]
-            sample = {'images': images, 'label': label}
-        else:
-            img_path = self.df.iloc[idx, 0]
-            image = pil_loader(img_path)
-            label = self.df.iloc[idx, 1]
-            if self.transform:
-                image = self.transform(image)
-            sample = {'image': image, 'label': label}
+        study_path = self.df.iloc[idx, 0]
+        count = self.df.iloc[idx, 1]
+        images = []
+        for i in range(count):
+            image = pil_loader(study_path + 'image%s.png' % (i+1))
+            images.append(self.transform(image))
+        images = torch.stack(images)
+        label = self.df.iloc[idx, 2]
+        sample = {'images': images, 'label': label}
         return sample
 
 def get_dataloaders(data, batch_size=8, study_level=False):
+    '''
+    Returns dataloader pipeline with data augmentation
+    '''
     data_transforms = {
         'train': transforms.Compose([
                 transforms.Resize((224, 224)),
@@ -87,7 +79,6 @@ def get_dataloaders(data, batch_size=8, study_level=False):
     image_datasets = {x: ImageDataset(data[x], transform=data_transforms[x], study_level=study_level) for x in data_cat}
     dataloaders = {x: DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in data_cat}
     return dataloaders
-
 
 if __name__=='main':
     pass

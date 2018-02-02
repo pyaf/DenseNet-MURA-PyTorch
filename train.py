@@ -8,7 +8,7 @@ from utils import plot_training
 data_cat = ['train', 'valid'] # data categories
 
 def train_model(model, criterion, optimizer, dataloaders, scheduler, 
-                dataset_sizes, num_epochs, v2=False):
+                dataset_sizes, num_epochs):
     since = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
@@ -30,12 +30,8 @@ def train_model(model, criterion, optimizer, dataloaders, scheduler,
             for i, data in enumerate(dataloaders[phase]):
                 # get the inputs
                 print(i, end='\r')
+                inputs = data['images'][0]
                 labels = data['label'].type(torch.FloatTensor)
-                if v2:
-                    inputs = data['images'][0]
-                else:
-                    inputs = data['image']
-                    labels = labels.view(-1, 1)
                 # wrap them in Variable
                 inputs = Variable(inputs.cuda())
                 labels = Variable(labels.cuda())
@@ -43,13 +39,9 @@ def train_model(model, criterion, optimizer, dataloaders, scheduler,
                 optimizer.zero_grad()
                 # forward
                 outputs = model(inputs)
-                if v2: 
-                    outputs = torch.mean(outputs)
-                    loss = criterion(outputs, labels, phase)
-                    running_loss += loss.data[0]
-                else:
-                    loss = criterion(outputs, labels)
-                    running_loss += loss.data[0] * inputs.size(0)
+                outputs = torch.mean(outputs)
+                loss = criterion(outputs, labels, phase)
+                running_loss += loss.data[0]
                 # backward + optimize only if in training phase
                 if phase == 'train':
                     loss.backward()
@@ -85,8 +77,7 @@ def train_model(model, criterion, optimizer, dataloaders, scheduler,
     return model
 
 
-def get_metrics(model, criterion, dataloaders, dataset_sizes, v2=False,
-                phase='valid'):
+def get_metrics(model, criterion, dataloaders, dataset_sizes, phase='valid'):
     '''
     Loops over phase (train or valid) set to determine acc, loss and 
     confusion meter of the model.
@@ -97,21 +88,14 @@ def get_metrics(model, criterion, dataloaders, dataset_sizes, v2=False,
     for i, data in enumerate(dataloaders[phase]):
         print(i, end='\r')
         labels = data['label'].type(torch.FloatTensor)
-        if v2:
-            inputs = data['images'][0]
-        else:
-            inputs = data['image']
-            labels = labels.view(-1, 1)
+        inputs = data['images'][0]
         # wrap them in Variable
         inputs = Variable(inputs.cuda())
         labels = Variable(labels.cuda())
         # forward
         outputs = model(inputs)
-        if v2: 
-            outputs = torch.mean(outputs)
-            loss = criterion(outputs, labels, phase)
-        else:
-            loss = criterion(outputs, labels)
+        outputs = torch.mean(outputs)
+        loss = criterion(outputs, labels, phase)
         # statistics
         running_loss += loss.data[0] * inputs.size(0)
         preds = (outputs.data > 0.5).type(torch.cuda.FloatTensor)
