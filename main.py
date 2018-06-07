@@ -2,43 +2,33 @@ import time
 import copy
 import pandas as pd
 import torch
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.autograd import Variable
-from tqdm import tqdm
 from densenet import densenet169
-from utils import n_p
+from utils import plot_training, n_p, get_count
 from train import train_model, get_metrics
 from pipeline import get_study_level_data, get_dataloaders
 
-
 # #### load study level dict data
-
 study_data = get_study_level_data(study_type='XR_WRIST')
-data_cat = ['train', 'valid'] # data categories
-
 
 # #### Create dataloaders pipeline
-
-dataloaders = get_dataloaders(study_data, batch_size=1, study_level=True)
+data_cat = ['train', 'valid'] # data categories
+dataloaders = get_dataloaders(study_data, batch_size=1)
 dataset_sizes = {x: len(study_data[x]) for x in data_cat}
-print('dataset sizes, study count:', dataset_sizes)
-
 
 # #### Build model
+# tai = total abnormal images, tni = total normal images
+tai = {x: get_count(study_data[x], 'positive') for x in data_cat}
+tni = {x: get_count(study_data[x], 'negative') for x in data_cat}
+Wt1 = {x: n_p(tni[x] / (tni[x] + tai[x])) for x in data_cat}
+Wt0 = {x: n_p(tai[x] / (tni[x] + tai[x])) for x in data_cat}
 
-# count number of positive and negative studies in the dataloader, to be used to compute Wt1 and Wt0
-images_count = {label: {x: 0 for x in data_cat} for label in [0, 1]}
-for phase in data_cat:
-    for data in tqdm(dataloaders[phase]):
-        label = data['label'].numpy()[0]
-        images_count[label][phase] += len(data['images'][0])
-print(images_count)
-
-Wt1 = {x: n_p(images_count[0][x] / (images_count[0][x] + images_count[1][x])) for x in data_cat}
-Wt0 = {x: n_p(images_count[1][x] / (images_count[0][x] + images_count[1][x])) for x in data_cat}
-
-print('Wt0:', Wt0)
-print('Wt1:', Wt1)
+print('tai:', tai)
+print('tni:', tni, '\n')
+print('Wt0 train:', Wt0['train'])
+print('Wt0 valid:', Wt0['valid'])
+print('Wt1 train:', Wt1['train'])
+print('Wt1 valid:', Wt1['valid'])
 
 class Loss(torch.nn.modules.Module):
     def __init__(self, Wt1, Wt0):
@@ -53,18 +43,13 @@ class Loss(torch.nn.modules.Module):
 model = densenet169(pretrained=True)
 model = model.cuda()
 
-
-
 criterion = Loss(Wt1, Wt0)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=1, verbose=True)
-
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=1, verbose=True)
 
 # #### Train model
+model = train_model(model, criterion, optimizer, dataloaders, scheduler, dataset_sizes, num_epochs=5)
 
+torch.save(model.state_dict(), 'models/model.pth')
 
-model = train_model(model, criterion, optimizer, dataloaders, scheduler, num_epochs=20, v2=True)
-# get_metrics(model, criterion, dataloaders, v2=True)
-
-# save the model state
-torch.save(model.state_dict(), 'model.pth')
+get_metrics(model, criterion, dataloaders, dataset_sizes)

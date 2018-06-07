@@ -15,6 +15,15 @@ According to MURA dataset paper:
 
 The model implemented in [model.py](model.py) takes as input 'all' the views for a study of an upper extremity. On each view the model predicts the probability of abnormality. The Model computes the overall probability of abnormality for the study by taking the arithmetic mean of the abnormality probabilites output by the network for each image.
 
+## Instructions
+
+Install dependencies:
+* PyTorch
+* TorchVision
+* Numpy
+* Pandas
+
+Train the model with `python main.py`
 
 ## Citation
     @ARTICLE{2017arXiv171206957R,
