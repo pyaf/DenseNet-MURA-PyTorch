@@ -76,7 +76,7 @@ def get_dataloaders(data, batch_size=8, study_level=False):
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
     }
-    image_datasets = {x: ImageDataset(data[x], transform=data_transforms[x], study_level=study_level) for x in data_cat}
+    image_datasets = {x: ImageDataset(data[x], transform=data_transforms[x]) for x in data_cat}
     dataloaders = {x: DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in data_cat}
     return dataloaders
 
